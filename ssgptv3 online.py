@@ -33,6 +33,7 @@ with st.sidebar:
     pdf_text = ""
     if uploaded_file:
         reader = pypdf.PdfReader(uploaded_file)
+        # Extract first 5 pages
         pdf_text = "\n".join([p.extract_text() for p in reader.pages[:5]])
         st.success(f"✅ Loaded: {uploaded_file.name}")
 
@@ -53,35 +54,37 @@ if prompt := st.chat_input("Ask for a graph, an image, or analyze my PDF..."):
 
     with st.chat_message("assistant"):
         response = ""
-        # 1. GRAPH LOGIC (WITH CRASH PROTECTION)
+        # 1. GRAPH LOGIC (CRASH PROTECTED)
         if any(word in prompt.lower() for word in ["graph", "chart", "stock"]):
             st.caption("📈 Analyzing Market Data...")
+            # Simple ticker logic: looks for capitalized words like 'AAPL' or 'TSLA'
             ticker = "BTC-USD" if "bitcoin" in prompt.lower() else "NVDA"
             data = yf.download(ticker, period="1mo")
             
             if not data.empty:
+                # Check if 'Close' exists (sometimes yfinance returns multiple columns)
                 fig = px.line(data, y="Close", title=f"{ticker} 30-Day Analysis", template="plotly_dark")
                 st.plotly_chart(fig, use_container_width=True)
                 response = f"I've generated the {ticker} analysis chart for you."
             else:
-                st.warning(f"⚠️ Could not fetch data for {ticker}. The ticker might be invalid or the service is rate-limited.")
-                response = "I tried to build the graph, but no data was returned from the server."
+                st.warning(f"⚠️ No data found for {ticker}. Check the ticker symbol.")
+                response = "I couldn't build the graph because the financial data was empty."
 
         # 2. IMAGE LOGIC
         elif any(word in prompt.lower() for word in ["image", "draw", "picture"]):
             st.caption("🎨 Rendering AI Visual...")
             img_url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={datetime.datetime.now().microsecond}"
             st.image(img_url, caption=f"Generated: {prompt}")
-            response = "Visual rendering complete. See the image above."
+            response = "Visual rendering complete."
 
         # 3. VIDEO LOGIC
         elif "video" in prompt.lower():
             st.caption("🎬 Synthesizing AI Video...")
             vid_url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?model=video"
             st.video(vid_url)
-            response = "Short-form AI video motion complete."
+            response = "AI motion render complete."
 
-        # 4. GENERAL AI + PDF + WEB LOGIC
+        # 4. DEFAULT BRAIN (PDF + WEB)
         else:
             with st.spinner("Analyzing web and documents..."):
                 web_info = get_web_intel(prompt)
