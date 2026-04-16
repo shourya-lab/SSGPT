@@ -4,3 +4,5 @@ duckduckgo-search
 youtube-search-python
 pypdf
 pyserial
+yfinance
+newspaper3k
