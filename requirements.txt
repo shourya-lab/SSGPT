@@ -6,3 +6,4 @@ pypdf
 pyserial
 yfinance
 newspaper3k
+lxml_html_clean
