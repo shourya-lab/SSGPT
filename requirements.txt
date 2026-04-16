@@ -1,6 +1,6 @@
 streamlit
 gpt4all
-duckduckgo_search
+duckduckgo-search
 youtube-search-python
 pypdf
 pyserial
