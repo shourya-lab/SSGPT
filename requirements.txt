@@ -1,0 +1,6 @@
+streamlit
+gpt4all
+duckduckgo_search
+Youtube-python
+pypdf
+pyserial
