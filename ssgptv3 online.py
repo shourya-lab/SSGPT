@@ -5,14 +5,13 @@ import random
 import time
 
 # --- SAFETY WRAPPERS FOR LIBRARIES ---
+# IMPORTANT: 'youtube-search-python' installs as 'youtubesearchpython'
 try:
-    # FIX: Ensure these match your requirements.txt names
-    from youtube_search_python import VideosSearch 
+    from youtubesearchpython import VideosSearch
     import pypdf
-    # NOTE: 'pyserial' is the library name, but you 'import serial'
-    import serial 
+    import serial
 except ImportError as e:
-    st.error(f"Missing dependency: {e}. Check requirements.txt")
+    st.error(f"Missing dependency: {e}. Check your requirements.txt")
     st.stop()
 
 # --- THE TECH-STACK STYLING ---
@@ -52,24 +51,23 @@ def web_search(query):
         with DDGS() as ddgs:
             results = [r['body'] for r in ddgs.text(query, max_results=3)]
             return "\n".join(results) if results else "No real-time data found."
-    except Exception: 
+    except Exception:
         return "Search engine currently offline."
 
 @st.cache_resource
 def load_engine():
-    # WARNING: This file is huge (~1GB). 
-    # Streamlit Cloud might struggle to download it every time.
     model_name = "Llama-3.2-1B-Instruct-Q4_0.gguf"
     try:
+        # This will download the model to the cloud server
         return GPT4All(model_name)
     except Exception as e:
-        st.error(f"Model Load Error: {e}")
+        st.warning(f"Note: Local AI model is still loading or unavailable: {e}")
         return None
 
 # --- HARDWARE SUPERVISOR ---
 if "arduino" not in st.session_state:
     try:
-        # COM3 only works on your Windows PC, not on the Web/Cloud.
+        # This only works on your local computer, not on Streamlit Cloud
         ser = serial.Serial(port='COM3', baudrate=9600, timeout=0.1)
         st.session_state.arduino = ser
     except:
@@ -83,7 +81,7 @@ with st.sidebar:
     if st.session_state.arduino:
         st.success("🤖 ARDUINO: ONLINE (COM3)")
     else:
-        st.warning("⚠️ ARDUINO: OFFLINE (Local Port Only)")
+        st.info("ℹ️ Web Mode: Hardware Bridge Disabled")
 
     st.markdown("---")
     st.subheader("📁 Document Vault")
@@ -93,28 +91,34 @@ with st.sidebar:
     if uploaded_file:
         reader = pypdf.PdfReader(uploaded_file)
         file_context = "\n".join([p.extract_text() for p in reader.pages[:5]])
-        st.info("Context Loaded: " + uploaded_file.name)
+        st.info(f"Context Loaded: {uploaded_file.name}")
 
 # --- CHAT INTERFACE ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# FIXED LINE 117: Added the full command
-if prompt := st.chat_input("Type your message here..."):
-    # Display user message
+# FIXED INPUT BOX
+if prompt := st.chat_input("Ask SSGPT anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate response
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
-        full_response = "I am processing your request..." # Replace with model logic
+        
+        # Check if model is loaded
+        model = load_engine()
+        if model:
+            with st.spinner("Thinking..."):
+                full_response = model.generate(prompt, max_tokens=200)
+        else:
+            # Fallback if the 1GB model file fails to download on the cloud
+            full_response = "I'm running in Web-Light mode. Please check the 'Manage App' logs to see if the GPT4All model finished downloading!"
+            
         response_placeholder.markdown(full_response)
     
     st.session_state.messages.append({"role": "assistant", "content": full_response})
