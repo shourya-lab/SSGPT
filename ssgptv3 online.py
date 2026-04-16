@@ -9,7 +9,7 @@ import datetime
 import requests
 
 # --- SYSTEM CONFIG ---
-st.set_page_config(page_title="SSGPT.v3 ALL-IN-ONE", page_icon="💠", layout="wide")
+st.set_page_config(page_title="SSGPT ULTRA: MULTIMODAL", page_icon="💠", layout="wide")
 
 # --- CORE ENGINES ---
 @st.cache_resource
@@ -21,9 +21,9 @@ def get_web_intel(query):
     try:
         with DDGS() as ddgs:
             return "\n".join([r['body'] for r in ddgs.text(f"{query} {datetime.date.today()}", max_results=3)])
-    except: return "Web search currently unavailable."
+    except: return "Web search currently offline."
 
-# --- SIDEBAR: THE VAULT (RESTORED) ---
+# --- SIDEBAR: DOCUMENT VAULT (RESTORED & PERSISTENT) ---
 with st.sidebar:
     st.title("💠 SSGPT CONTROL")
     st.markdown("---")
@@ -34,7 +34,7 @@ with st.sidebar:
     if uploaded_file:
         reader = pypdf.PdfReader(uploaded_file)
         pdf_text = "\n".join([p.extract_text() for p in reader.pages[:5]])
-        st.success(f"Loaded: {uploaded_file.name}")
+        st.success(f"✅ Loaded: {uploaded_file.name}")
 
 # --- MAIN INTERFACE ---
 st.markdown('<h1 style="text-align:center; color:#00f2ff;">SSGPT.v3 ULTRA: MULTIMODAL 🌐</h1>', unsafe_allow_html=True)
@@ -46,34 +46,40 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if prompt := st.chat_input("Ask for a graph, generate an image, or analyze my PDF..."):
+if prompt := st.chat_input("Ask for a graph, an image, or analyze my PDF..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # 1. GRAPH LOGIC
-        if "graph" in prompt.lower() or "chart" in prompt.lower():
-            st.caption("📈 Generating Data Analysis...")
-            ticker = "BTC-USD" if "bitcoin" in prompt.lower() else "TSLA"
+        response = ""
+        # 1. GRAPH LOGIC (WITH CRASH PROTECTION)
+        if any(word in prompt.lower() for word in ["graph", "chart", "stock"]):
+            st.caption("📈 Analyzing Market Data...")
+            ticker = "BTC-USD" if "bitcoin" in prompt.lower() else "NVDA"
             data = yf.download(ticker, period="1mo")
-            fig = px.line(data, y="Close", title=f"{ticker} Performance", template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
-            response = f"I've generated the {ticker} analysis graph for you based on the last 30 days of market data."
+            
+            if not data.empty:
+                fig = px.line(data, y="Close", title=f"{ticker} 30-Day Analysis", template="plotly_dark")
+                st.plotly_chart(fig, use_container_width=True)
+                response = f"I've generated the {ticker} analysis chart for you."
+            else:
+                st.warning(f"⚠️ Could not fetch data for {ticker}. The ticker might be invalid or the service is rate-limited.")
+                response = "I tried to build the graph, but no data was returned from the server."
 
         # 2. IMAGE LOGIC
-        elif "image" in prompt.lower() or "draw" in prompt.lower():
+        elif any(word in prompt.lower() for word in ["image", "draw", "picture"]):
             st.caption("🎨 Rendering AI Visual...")
             img_url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={datetime.datetime.now().microsecond}"
             st.image(img_url, caption=f"Generated: {prompt}")
-            response = "Visual synthesis complete. See the generated image above."
+            response = "Visual rendering complete. See the image above."
 
         # 3. VIDEO LOGIC
         elif "video" in prompt.lower():
-            st.caption("🎬 Processing AI Video...")
+            st.caption("🎬 Synthesizing AI Video...")
             vid_url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?model=video"
             st.video(vid_url)
-            response = "Video generation complete. High-quality motion render displayed above."
+            response = "Short-form AI video motion complete."
 
         # 4. GENERAL AI + PDF + WEB LOGIC
         else:
@@ -84,7 +90,7 @@ if prompt := st.chat_input("Ask for a graph, generate an image, or analyze my PD
                 if model:
                     response = model.generate(f"Context: {full_context}\n\nUser: {prompt}", max_tokens=300)
                 else:
-                    response = f"I found this for you: {web_info[:500]}"
+                    response = f"Search Results: {web_info[:500]}"
             st.markdown(response)
 
     st.session_state.messages.append({"role": "assistant", "content": response})
