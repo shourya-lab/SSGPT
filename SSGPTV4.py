@@ -8,7 +8,7 @@ from openai import OpenAI
 # --- CONFIG ---
 st.set_page_config(page_title="SSGPT", layout="wide")
 
-# --- API (FREE MODEL SAFE) ---
+# --- API ---
 client = OpenAI(
     api_key=st.secrets["OPENAI_API_KEY"],
     base_url="https://openrouter.ai/api/v1"
@@ -76,7 +76,7 @@ if uploaded_pdf:
 st.title("✨ SSGPT PRO" if st.session_state.pro else "💠 SSGPT")
 
 # ======================
-# 📈 STOCK ANALYSIS
+# 📈 STOCK SECTION
 # ======================
 st.subheader("📈 Stock Market")
 
@@ -90,7 +90,7 @@ if ticker:
         st.metric("Latest Price", f"{data['Close'].iloc[-1]:.2f}")
 
 # ======================
-# 📰 NEWS
+# 📰 NEWS SECTION
 # ======================
 st.subheader("📰 Finance News")
 
@@ -101,13 +101,13 @@ for entry in feed.entries[:5]:
     st.write(entry.link)
 
 # ======================
-# 💬 CHAT
+# 💬 CHAT DISPLAY
 # ======================
 for msg in st.session_state.chat:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- VOICE FUNCTION ---
+# --- VOICE ---
 def speak(text):
     safe = text.replace('"', '')
     st.components.v1.html(f"""
@@ -137,9 +137,9 @@ Focus:
 - Global news
 - Education
 
-Give structured answers:
-- Insight
-- Key points
+Give:
+- Key insights
+- Bullet points
 - Risks
 
 Reply in {languages[lang]}.
@@ -153,13 +153,27 @@ Reply in {languages[lang]}.
                     "content": f"Use this document:\n{pdf_text[:3000]}"
                 })
 
-            # ✅ FREE MODEL (NO CREDIT ERROR)
-            res = client.chat.completions.create(
-                model="mistralai/mistral-7b-instruct",
-                messages=messages
-            )
+            # 🔥 MODEL FALLBACK SYSTEM (NEVER BREAKS)
+            models = [
+                "openchat/openchat-7b",
+                "nousresearch/nous-capybara-7b"
+            ]
 
-            ans = res.choices[0].message.content
+            ans = None
+
+            for m in models:
+                try:
+                    res = client.chat.completions.create(
+                        model=m,
+                        messages=messages
+                    )
+                    ans = res.choices[0].message.content
+                    break
+                except:
+                    continue
+
+            if not ans:
+                ans = "❌ All models failed. Try again later."
 
         except Exception as e:
             ans = f"❌ Error: {str(e)}"
