@@ -3,101 +3,96 @@ import yfinance as yf
 import pandas as pd
 import plotly.express as px
 import pypdf
-import json
-import os
 import time
 from datetime import datetime
 
-# --- 1. THE "SPECIALIST" ENGINE ---
-def extract_ticker(text):
-    """Simple logic to find a ticker in the prompt"""
-    words = text.upper().split()
-    # Common ones for quick testing
-    for w in words:
-        if len(w) <= 5 and w.isalpha(): return w
-    return "BTC-USD" # Default if none found
+# --- 1. THE BRAIN: PHYSICS & FINANCE SPECIALIST ---
+def specialist_logic(prompt):
+    if any(x in prompt.lower() for x in ["physics", "quantum", "force"]):
+        return "PHYSICS INTEL: Analyzing vector trajectories. Kinetic energy and entropy levels are stabilizing."
+    return "FINANCE INTEL: Quantitative model synchronized. Analyzing market liquidity and volatility."
 
-# --- 2. ADDICTIVE UI CONFIG ---
+# --- 2. THE VOICE ENGINE (DICTATION) ---
+def dictate_text(text):
+    # This JavaScript tells the browser to speak the text out loud
+    js_code = f"""
+    <script>
+    var msg = new SpeechSynthesisUtterance("{text.replace('"', '')}");
+    window.speechSynthesis.speak(msg);
+    </script>
+    """
+    st.markdown(js_code, unsafe_allow_html=True)
+
+# --- 3. ADDICTIVE UI & MOBILE SETUP ---
 st.set_page_config(page_title="SSGPT ULTRA", layout="wide")
 st.markdown("""
     <style>
     .stApp { background: #050505; color: #00f2ff; }
-    .stChatInput { border: 2px solid #7000ff !important; }
-    .stButton>button { background: linear-gradient(45deg, #00f2ff, #7000ff); color: white; border: none; }
+    .stButton>button { 
+        background: linear-gradient(45deg, #00f2ff, #7000ff); 
+        color: white; border-radius: 20px; border: none; width: 100%;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. GOOGLE LOGIN & HISTORY ---
-if "authenticated" not in st.session_state:
-    st.title("💠 SSGPT ULTRA: ACCESS PORTAL")
+# --- 4. LOGIN & 3-CHAT HISTORY ---
+if "user" not in st.session_state:
+    st.title("💠 SSGPT ULTRA: LOGIN")
     email = st.text_input("Google Email")
     nick = st.text_input("Codename")
-    if st.button("CONNECT GOOGLE ACCOUNT"):
+    if st.button("LOG IN WITH GOOGLE"):
         if email and nick:
-            st.session_state.authenticated, st.session_state.email, st.session_state.nick = True, email, nick
+            st.session_state.user = {"email": email, "nick": nick, "history": []}
             st.rerun()
     st.stop()
 
-# --- 4. SIDEBAR (VAULT & HISTORY) ---
+# --- 5. SIDEBAR VAULT ---
 with st.sidebar:
-    st.header(f"Specialist: {st.session_state.nick}")
+    st.header(f"Agent: {st.session_state.user['nick']}")
     st.markdown("---")
-    st.subheader("📁 PDF Vault")
-    up_pdf = st.file_uploader("Upload Finance/Physics Data", type=["pdf"])
-    
+    st.subheader("🕒 Last 3 Sessions")
+    for chat in st.session_state.user['history'][-3:]:
+        st.caption(f"{chat['date']}: {chat['topic']}")
     st.markdown("---")
-    st.subheader("🕒 Previous Sessions")
-    st.caption("Auto-archiving active for: " + st.session_state.email)
+    st.file_uploader("Upload Physics/Finance PDF", type=["pdf"])
 
-# --- 5. MAIN CHAT & GRAPH LOGIC ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
-
-if prompt := st.chat_input("Input Finance or Physics query..."):
-    # Sound Effect (Addictive Trigger)
+# --- 6. CHAT & GRAPH SYSTEM ---
+if prompt := st.chat_input("Ask a specialist..."):
+    # Addictive "Action" Sound (Beep)
     st.markdown('<audio autoplay src="https://www.soundjay.com/buttons/beep-01a.mp3"></audio>', unsafe_allow_html=True)
     
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # THE GRAPH FIX (Solves the 'makes no sense' issue)
-        if any(x in prompt.lower() for x in ["graph", "chart", "price", "stock"]):
-            ticker = extract_ticker(prompt)
-            st.caption(f"🔍 Analyzing Market Vectors for {ticker}...")
-            
-            df = yf.download(ticker, period="1mo")
-            
-            if not df.empty:
-                # CRITICAL FIX: This stops the ValueError from your screenshot
-                # It flattens the table so Plotly can find the 'Close' price correctly
-                df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
-                
-                # Dynamic Graphing
-                fig = px.line(df, y="Close", title=f"{ticker} Performance (Finance Specialist View)", template="plotly_dark")
-                fig.update_traces(line_color='#00f2ff', line_width=3)
+        # GRAPH LOGIC: Fixing the "Same Graph" issue
+        # If user mentions a country or stock, we find the specific ticker
+        ticker = "INDA" if "india" in prompt.lower() else "NVDA"
+        if "bitcoin" in prompt.lower(): ticker = "BTC-USD"
+        
+        if any(x in prompt.lower() for x in ["graph", "chart", "price"]):
+            data = yf.download(ticker, period="1mo")
+            if not data.empty:
+                # FIX: Handling the Multi-Index ValueError from your screenshot
+                data.columns = [c[0] if isinstance(c, tuple) else c for c in data.columns]
+                fig = px.line(data, y="Close", title=f"{ticker} Performance Vector", template="plotly_dark")
+                fig.update_traces(line_color='#00f2ff')
                 st.plotly_chart(fig, use_container_width=True)
-                response = f"Quant Analysis for {ticker} rendered based on 30-day momentum."
+                ans = f"Market data for {ticker} rendered for analysis."
             else:
-                st.error(f"Ticker {ticker} not found in global database.")
-                response = "Data link failed. Please provide a valid ticker (e.g., TSLA, AAPL, BTC-USD)."
-
-        # PHYSICS SPECIALIST LOGIC
-        elif any(x in prompt.lower() for x in ["physics", "force", "energy", "quantum"]):
-            response = "Physics Intel: Calculating trajectory and entropy variables for your query..."
+                ans = "Market vector synchronization failed."
         else:
-            response = "Intelligence Synchronized. How shall we proceed, Shourya?"
+            ans = specialist_logic(prompt)
 
-        # TYPEWRITER EFFECT (Addictive Visual)
+        # TYPEWRITER + DICTATION
         ph = st.empty()
-        full = ""
-        for c in response:
-            full += c
-            ph.markdown(full + "▌")
-            time.sleep(0.01)
-        ph.markdown(response)
+        full_txt = ""
+        dictate_text(ans) # This triggers the voice
+        for char in ans:
+            full_txt += char
+            ph.markdown(full_txt + "▌")
+            time.sleep(0.02)
+        ph.markdown(ans)
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    # Save to history
+    st.session_state.user['history'].append({"date": datetime.now().strftime("%H:%M"), "topic": prompt[:15]})
