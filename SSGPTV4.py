@@ -8,10 +8,9 @@ from openai import OpenAI
 # --- CONFIG ---
 st.set_page_config(page_title="SSGPT", layout="wide")
 
-# --- API ---
+# --- OPENAI (FINAL FIX) ---
 client = OpenAI(
-    api_key=st.secrets["OPENAI_API_KEY"],
-    base_url="https://openrouter.ai/api/v1"
+    api_key=st.secrets["OPENAI_API_KEY"]
 )
 
 # --- LANGUAGES ---
@@ -19,8 +18,7 @@ languages = {
     "en-US": "English","hi-IN": "Hindi","mr-IN": "Marathi","ta-IN": "Tamil",
     "te-IN": "Telugu","kn-IN": "Kannada","ml-IN": "Malayalam","bn-IN": "Bengali",
     "gu-IN": "Gujarati","pa-IN": "Punjabi","ur-PK": "Urdu","or-IN": "Odia",
-    "as-IN": "Assamese","fr-FR": "French","de-DE": "German","es-ES": "Spanish",
-    "it-IT": "Italian","nl-NL": "Dutch","ja-JP": "Japanese"
+    "as-IN": "Assamese","fr-FR": "French","de-DE": "German","es-ES": "Spanish"
 }
 
 # --- SESSION ---
@@ -31,7 +29,7 @@ if "pro" not in st.session_state:
 if "voice" not in st.session_state:
     st.session_state.voice = True
 
-# --- UI THEMES ---
+# --- UI ---
 if st.session_state.pro:
     st.markdown("""
     <style>
@@ -65,7 +63,7 @@ with st.sidebar:
 
     uploaded_pdf = st.file_uploader("📄 Upload PDF")
 
-# --- PDF READING ---
+# --- PDF ---
 pdf_text = ""
 if uploaded_pdf:
     reader = PyPDF2.PdfReader(uploaded_pdf)
@@ -76,7 +74,7 @@ if uploaded_pdf:
 st.title("✨ SSGPT PRO" if st.session_state.pro else "💠 SSGPT")
 
 # ======================
-# 📈 STOCK SECTION
+# 📈 STOCKS
 # ======================
 st.subheader("📈 Stock Market")
 
@@ -90,7 +88,7 @@ if ticker:
         st.metric("Latest Price", f"{data['Close'].iloc[-1]:.2f}")
 
 # ======================
-# 📰 NEWS SECTION
+# 📰 NEWS
 # ======================
 st.subheader("📰 Finance News")
 
@@ -130,12 +128,12 @@ if prompt := st.chat_input("Ask anything..."):
 
         try:
             system = f"""
-You are a Bloomberg-level AI.
+You are a Bloomberg-level AI assistant.
 
 Focus:
-- Finance & stocks
+- Finance & stock market
 - Global news
-- Education
+- Studies
 
 Give:
 - Key insights
@@ -153,30 +151,16 @@ Reply in {languages[lang]}.
                     "content": f"Use this document:\n{pdf_text[:3000]}"
                 })
 
-            # 🔥 MODEL FALLBACK SYSTEM (NEVER BREAKS)
-            models = [
-                "openchat/openchat-7b",
-                "nousresearch/nous-capybara-7b"
-            ]
+            # ✅ FINAL FIXED MODEL
+            res = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages
+            )
 
-            ans = None
-
-            for m in models:
-                try:
-                    res = client.chat.completions.create(
-                        model=m,
-                        messages=messages
-                    )
-                    ans = res.choices[0].message.content
-                    break
-                except:
-                    continue
-
-            if not ans:
-                ans = "❌ All models failed. Try again later."
+            ans = res.choices[0].message.content
 
         except Exception as e:
-            ans = f"❌ Error: {str(e)}"
+            ans = f"❌ API Error: {str(e)}"
 
         st.markdown(ans)
 
