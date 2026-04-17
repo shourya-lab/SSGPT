@@ -1,88 +1,89 @@
 import streamlit as st
-from gpt4all import GPT4All
-from duckduckgo_search import DDGS
-import yfinance as yf
-import pandas as pd
-import plotly.express as px
-import pypdf
-import datetime
+import streamlit.components.v1 as components
+import base64
+import time
 
-# --- SYSTEM CONFIG ---
-st.set_page_config(page_title="SSGPT ULTRA", page_icon="💠", layout="wide")
+# --- 1. THE SOUND ENGINE ---
+def play_sound(file_path):
+    with open(file_path, "rb") as f:
+        data = f.read()
+        b64 = base64.b64encode(data).decode()
+        md = f"""
+            <audio autoplay="true">
+            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+            </audio>
+            """
+        st.markdown(md, unsafe_allow_html=True)
 
-# --- GUARDRAIL ENGINES ---
-@st.cache_resource
-def load_brain():
-    try: return GPT4All("Llama-3.2-1B-Instruct-Q4_0.gguf")
-    except: return None
+# --- 2. THE "HEY SSGPT" LISTENER (JavaScript) ---
+# Note: This uses the Browser's WebSpeech API
+components.html("""
+    <script>
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.continuous = true;
+    recognition.lang = 'en-US';
 
-def get_web_intel(query):
-    try:
-        with DDGS() as ddgs:
-            results = ddgs.text(f"{query} {datetime.date.today()}", max_results=3)
-            return "\n".join([r['body'] for r in results])
-    except: return "Global Search currently throttled."
+    recognition.onresult = (event) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+        if (transcript.includes("hey ssgpt")) {
+            window.parent.postMessage({type: 'ssgpt_activate', text: transcript}, "*");
+        }
+    };
+    recognition.start();
+    </script>
+    """, height=0)
 
-# --- SIDEBAR (RESTORED & FIXED) ---
-with st.sidebar:
-    st.title("💠 SYSTEM CONTROL")
-    st.markdown("---")
-    st.subheader("📁 Document Vault")
-    uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+# --- 3. ADDICTIVE UI STYLING ---
+st.markdown("""
+    <style>
+    /* Typewriter Animation */
+    .typewriter h1 {
+      overflow: hidden;
+      border-right: .15em solid orange;
+      white-space: nowrap;
+      margin: 0 auto;
+      letter-spacing: .15em;
+      animation: typing 3.5s steps(40, end), blink-caret .75s step-end infinite;
+    }
+    @keyframes typing { from { width: 0 } to { width: 100% } }
+    @keyframes blink-caret { from, to { border-color: transparent } 50% { border-color: orange; } }
     
-    pdf_text = ""
-    if uploaded_file:
-        try:
-            reader = pypdf.PdfReader(uploaded_file)
-            pdf_text = "\n".join([p.extract_text() for p in reader.pages[:3]])
-            st.success(f"✅ {uploaded_file.name} Loaded")
-        except: st.error("PDF Read Error")
+    /* Neon Glow Buttons */
+    .stButton>button {
+        box-shadow: 0 0 10px #00f2ff, 0 0 20px #7000ff;
+        border: 2px solid #00f2ff !format;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- MAIN UI ---
-st.markdown('<h1 style="text-align:center; color:#00f2ff;">SSGPT.v3 ULTRA 🌐</h1>', unsafe_allow_html=True)
+# --- 4. THE CHAT LOGIC ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-if prompt := st.chat_input("Ask for a stock graph, image, or video..."):
+st.title("💠 SSGPT ULTRA: VOICE ACTIVE")
+
+# Simulate a sound on start
+if st.button("🔊 Test Audio Systems"):
+    # You would replace "ping.mp3" with your actual sound file path
+    play_sound("ping.mp3") 
+
+if prompt := st.chat_input("Listening for 'Hey SSGPT'..."):
+    # Play 'Processing' Sound
+    # play_sound("processing.mp3")
+    
     with st.chat_message("user"):
         st.markdown(prompt)
-
+    
     with st.chat_message("assistant"):
-        # 1. GRAPH GUARDRAIL
-        if any(x in prompt.lower() for x in ["graph", "chart", "stock"]):
-            st.caption("📈 Fetching Market Intel...")
-            ticker = "NVDA" if "nvidia" in prompt.lower() else "BTC-USD"
-            data = yf.download(ticker, period="1mo")
-            
-            # FIX: Only draw if data exists!
-            if not data.empty and len(data) > 0:
-                fig = px.line(data, y="Close", title=f"{ticker} Analysis", template="plotly_dark")
-                fig.update_traces(line_color='#00f2ff')
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning(f"⚠️ No market data found for {ticker}. Try a different ticker.")
-
-        # 2. IMAGE/VIDEO GUARDRAIL
-        elif any(x in prompt.lower() for x in ["image", "draw", "video"]):
-            st.caption("🎨 Synthesizing Visuals...")
-            # Use a timestamp seed to prevent "cached" old images
-            seed = datetime.datetime.now().microsecond
-            clean_prompt = prompt.replace(" ", "%20")
-            
-            if "video" in prompt.lower():
-                url = f"https://pollinations.ai/p/{clean_prompt}?model=video&seed={seed}"
-                st.video(url)
-            else:
-                url = f"https://pollinations.ai/p/{clean_prompt}?width=1024&height=1024&seed={seed}"
-                st.image(url, caption="AI Render Complete")
-
-        # 3. TEXT BRAIN (PDF + WEB)
-        else:
-            with st.spinner("Consulting Global Intel..."):
-                web_info = get_web_intel(prompt)
-                model = load_brain()
-                context = f"PDF: {pdf_text}\n\nWeb: {web_info}"
-                
-                if model:
-                    response = model.generate(f"Context: {context}\n\nUser: {prompt}", max_tokens=300)
-                    st.markdown(response)
-                else:
-                    st.write(f"Direct Intel: {web_info[:500]}...")
+        message_placeholder = st.empty()
+        full_response = "I am processing your command, SHOURYA. Global intel synchronized."
+        
+        # TYPEWRITER EFFECT
+        curr_text = ""
+        for char in full_response:
+            curr_text += char
+            message_placeholder.markdown(curr_text + "▌")
+            time.sleep(0.03)
+        message_placeholder.markdown(full_response)
+        
+        # play_sound("success.mp3")
