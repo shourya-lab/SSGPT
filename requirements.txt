@@ -1,12 +1,7 @@
 streamlit
-gpt4all
-duckduckgo-search
-youtube-search-python
-pypdf
-yfinance
+openai
 pandas
 plotly
-requests
-newspaper3k
-lxml_html_clean
-openai
+PyPDF2
+yfinance
+feedparser
