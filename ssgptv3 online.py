@@ -1,99 +1,87 @@
 import streamlit as st
-from gpt4all import GPT4All
-from duckduckgo_search import DDGS
-import yfinance as yf
-import pandas as pd
-import plotly.express as px
-import pypdf
-import datetime
-import requests
+import json
+import os
+from datetime import datetime
 
-# --- SYSTEM CONFIG ---
-st.set_page_config(page_title="SSGPT ULTRA: MULTIMODAL", page_icon="💠", layout="wide")
+# --- UI STYLING (The "Addictive" Look) ---
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0e1117;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 20px;
+        background: linear-gradient(45deg, #00f2ff, #7000ff);
+        color: white;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        transform: scale(1.05);
+        box-shadow: 0px 0px 15px #00f2ff;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- CORE ENGINES ---
-@st.cache_resource
-def load_ai():
-    try: return GPT4All("Llama-3.2-1B-Instruct-Q4_0.gguf")
-    except: return None
+# --- MEMORY SYSTEM (The "Brain" that stays) ---
+USER_DATA_FILE = "user_registry.json"
 
-def get_web_intel(query):
-    try:
-        with DDGS() as ddgs:
-            return "\n".join([r['body'] for r in ddgs.text(f"{query} {datetime.date.today()}", max_results=3)])
-    except: return "Web search currently offline."
+def load_user_data():
+    if os.path.exists(USER_DATA_FILE):
+        with open(USER_DATA_FILE, "r") as f:
+            return json.load(f)
+    return {}
 
-# --- SIDEBAR: DOCUMENT VAULT (RESTORED & PERSISTENT) ---
-with st.sidebar:
-    st.title("💠 SSGPT CONTROL")
-    st.markdown("---")
-    st.subheader("📁 Document Vault")
-    uploaded_file = st.file_uploader("Upload PDF for Analysis", type=["pdf"])
+def save_user_data(data):
+    with open(USER_DATA_FILE, "w") as f:
+        json.dump(data, f)
+
+# --- APP LOGIC ---
+user_db = load_user_data()
+
+# 1. LOGIN / NICKNAME SECTION
+if "user_authenticated" not in st.session_state:
+    st.title("💠 Welcome to SSGPT Ultra")
+    email = st.text_input("Enter Google Email (Simulated for now)")
+    nickname = st.text_input("What should the AI call you?")
     
-    pdf_text = ""
-    if uploaded_file:
-        reader = pypdf.PdfReader(uploaded_file)
-        # Extract first 5 pages
-        pdf_text = "\n".join([p.extract_text() for p in reader.pages[:5]])
-        st.success(f"✅ Loaded: {uploaded_file.name}")
-
-# --- MAIN INTERFACE ---
-st.markdown('<h1 style="text-align:center; color:#00f2ff;">SSGPT.v3 ULTRA: MULTIMODAL 🌐</h1>', unsafe_allow_html=True)
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-if prompt := st.chat_input("Ask for a graph, an image, or analyze my PDF..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        response = ""
-        # 1. GRAPH LOGIC (CRASH PROTECTED)
-        if any(word in prompt.lower() for word in ["graph", "chart", "stock"]):
-            st.caption("📈 Analyzing Market Data...")
-            # Simple ticker logic: looks for capitalized words like 'AAPL' or 'TSLA'
-            ticker = "BTC-USD" if "bitcoin" in prompt.lower() else "NVDA"
-            data = yf.download(ticker, period="1mo")
+    if st.button("Initialize Consciousness"):
+        if email and nickname:
+            st.session_state.user_authenticated = email
+            st.session_state.nickname = nickname
             
-            if not data.empty:
-                # Check if 'Close' exists (sometimes yfinance returns multiple columns)
-                fig = px.line(data, y="Close", title=f"{ticker} 30-Day Analysis", template="plotly_dark")
-                st.plotly_chart(fig, use_container_width=True)
-                response = f"I've generated the {ticker} analysis chart for you."
-            else:
-                st.warning(f"⚠️ No data found for {ticker}. Check the ticker symbol.")
-                response = "I couldn't build the graph because the financial data was empty."
+            # If new user, create their profile
+            if email not in user_db:
+                user_db[email] = {
+                    "nickname": nickname,
+                    "history": [] # This stores past 3 sessions
+                }
+                save_user_data(user_db)
+            st.rerun()
+else:
+    # 2. LOAD PREVIOUS CHATS
+    current_user = st.session_state.user_authenticated
+    nickname = user_db[current_user]["nickname"]
+    past_chats = user_db[current_user]["history"]
 
-        # 2. IMAGE LOGIC
-        elif any(word in prompt.lower() for word in ["image", "draw", "picture"]):
-            st.caption("🎨 Rendering AI Visual...")
-            img_url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={datetime.datetime.now().microsecond}"
-            st.image(img_url, caption=f"Generated: {prompt}")
-            response = "Visual rendering complete."
+    st.sidebar.title(f"Welcome back, {nickname}!")
+    
+    # Show last 3 chat summaries in sidebar
+    st.sidebar.subheader("🕒 Past Intel")
+    for chat in past_chats[-3:]:
+        st.sidebar.info(f"Session: {chat['date']}\n\nLast Topic: {chat['summary']}")
 
-        # 3. VIDEO LOGIC
-        elif "video" in prompt.lower():
-            st.caption("🎬 Synthesizing AI Video...")
-            vid_url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?model=video"
-            st.video(vid_url)
-            response = "AI motion render complete."
+    # 3. CHAT INTERFACE
+    st.write(f"### What's our objective today, {nickname}?")
+    
+    # (Rest of your AI / Graph / Image code goes here)
 
-        # 4. DEFAULT BRAIN (PDF + WEB)
-        else:
-            with st.spinner("Analyzing web and documents..."):
-                web_info = get_web_intel(prompt)
-                full_context = f"PDF Info: {pdf_text}\n\nWeb Info: {web_info}"
-                model = load_ai()
-                if model:
-                    response = model.generate(f"Context: {full_context}\n\nUser: {prompt}", max_tokens=300)
-                else:
-                    response = f"Search Results: {web_info[:500]}"
-            st.markdown(response)
-
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    # 4. SAVING TO HISTORY (When user finishes)
+    if st.button("Archive Session"):
+        new_entry = {
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "summary": "User analyzed stocks and PDFs" # You can make this dynamic
+        }
+        user_db[current_user]["history"].append(new_entry)
+        save_user_data(user_db)
+        st.success("Session saved to your profile!")
