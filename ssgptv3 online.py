@@ -44,15 +44,44 @@ def load_db():
 def save_db(data):
     json.dump(data, open(USER_DB, "w"))
 
-# --- AUDIO ENGINE ---
+# --- LANGUAGE MAP ---
+lang_map = {
+    "en-US": "English",
+    "hi-IN": "Hindi",
+    "de-DE": "German",
+    "fr-FR": "French",
+    "nl-NL": "Dutch",
+    "mr-IN": "Marathi",
+    "kn-IN": "Kannada"
+}
+
+# --- AUDIO ENGINE (IMPROVED) ---
 def trigger_audio(text, lang="en-US"):
     safe = text.replace('"', '').replace("\n", " ")
+
     st.components.v1.html(f"""
     <script>
-    const msg = new SpeechSynthesisUtterance("{safe}");
-    msg.lang = "{lang}";
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(msg);
+    const speak = () => {{
+        const voices = speechSynthesis.getVoices();
+
+        let selectedVoice = voices.find(v => v.lang === "{lang}");
+
+        if (!selectedVoice) {{
+            selectedVoice = voices.find(v => v.lang.startsWith("{lang.split('-')[0]}"));
+        }}
+
+        const msg = new SpeechSynthesisUtterance("{safe}");
+        if (selectedVoice) msg.voice = selectedVoice;
+
+        msg.lang = "{lang}";
+        msg.rate = 1;
+
+        speechSynthesis.cancel();
+        speechSynthesis.speak(msg);
+    }};
+
+    speechSynthesis.onvoiceschanged = speak;
+    speak();
     </script>
     """, height=0)
 
@@ -63,17 +92,14 @@ def typewriter(text):
     for c in text:
         out += c
         box.markdown(out)
-        time.sleep(0.005)
+        time.sleep(0.003)
 
 # --- AUTH ---
 if "auth" not in st.session_state:
     st.title("💠 SSGPT INITIALIZE")
 
     email = st.text_input("Email")
-    lang = st.selectbox("Accent", ["en-US", "hi-IN", "de-DE"])
-
-    st.markdown("### 🚀 Unlock PRO")
-    st.markdown("Review us on **Product Hunt** to unlock premium features.")
+    lang = st.selectbox("Accent", list(lang_map.keys()))
 
     if st.button("CONNECT"):
         db = load_db()
@@ -92,63 +118,65 @@ if "auth" not in st.session_state:
 db = load_db()
 user = db[st.session_state.email]
 
-st.title("✨ SSGPT ULTRA" if user["pro"] else "💠 SSGPT TERMINAL")
+st.title("✨ SSGPT ULTRA")
 
 # --- SIDEBAR SETTINGS ---
 with st.sidebar:
     st.markdown("## ⚙️ Settings")
 
     new_lang = st.selectbox(
-        "🎙️ Accent",
-        ["en-US", "hi-IN", "de-DE"],
-        index=["en-US", "hi-IN", "de-DE"].index(user["lang"])
+        "🎙️ Language",
+        list(lang_map.keys()),
+        index=list(lang_map.keys()).index(user["lang"])
     )
 
     if new_lang != user["lang"]:
         user["lang"] = new_lang
         db[st.session_state.email] = user
         save_db(db)
-        st.success("Accent updated")
-
-# --- PRODUCT HUNT BANNER ---
-st.markdown("""
-### 🌟 Unlock PRO Access  
-Review us on **Product Hunt** → Get:
-- ⚡ Faster AI  
-- 🔊 Better voice  
-- 🧠 Memory mode  
-- 🎨 Premium UI  
-""")
+        st.success("Language updated")
 
 # --- CHECK API KEY ---
 if "GROQ_API_KEY" not in st.secrets:
-    st.error("🚨 Missing GROQ_API_KEY in secrets")
+    st.error("🚨 Missing GROQ_API_KEY")
     st.stop()
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# --- CHAT HISTORY ---
+# --- CHAT MEMORY ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+# --- DISPLAY CHAT ---
 for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # --- INPUT ---
 if prompt := st.chat_input("Ask anything..."):
+
     st.session_state.chat_history.append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
+
         try:
-            messages = st.session_state.chat_history
+            # Force language
+            messages = [
+                {
+                    "role": "system",
+                    "content": f"Reply ONLY in {lang_map[user['lang']]} language."
+                }
+            ] + st.session_state.chat_history
+
+            # MODEL (UPDATED + SAFE)
+            model_name = "mixtral-8x7b-32768"
 
             res = client.chat.completions.create(
                 messages=messages,
-                model="llama3-70b-8192",  # ✅ FIXED MODEL
+                model=model_name,
             )
 
             ans = res.choices[0].message.content
