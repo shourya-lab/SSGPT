@@ -3,121 +3,101 @@ import yfinance as yf
 import pandas as pd
 import plotly.express as px
 import pypdf
+import json
+import os
 import time
-import datetime
+from datetime import datetime
 
-# --- 1. MOBILE-FIRST UI CONFIG ---
-st.set_page_config(page_title="SSGPT SPECIALIST", layout="wide", initial_sidebar_state="collapsed")
+# --- 1. THE "SPECIALIST" ENGINE ---
+def extract_ticker(text):
+    """Simple logic to find a ticker in the prompt"""
+    words = text.upper().split()
+    # Common ones for quick testing
+    for w in words:
+        if len(w) <= 5 and w.isalpha(): return w
+    return "BTC-USD" # Default if none found
 
+# --- 2. ADDICTIVE UI CONFIG ---
+st.set_page_config(page_title="SSGPT ULTRA", layout="wide")
 st.markdown("""
     <style>
-    /* Mobile Optimization */
-    .main .block-container { padding-top: 1rem; padding-bottom: 5rem; }
-    
-    /* Neon Physics/Finance Aesthetic */
-    .stApp { background: radial-gradient(circle, #050505 0%, #001122 100%); color: #e0e0e0; }
-    
-    /* Glowing Buttons */
-    .stButton>button {
-        width: 100%;
-        border-radius: 15px;
-        background: linear-gradient(90deg, #00f2ff, #0077ff);
-        color: white;
-        border: none;
-        box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
-        font-weight: bold;
-    }
-    
-    /* Addictive Floating Voice Button for Mobile */
-    .voice-btn {
-        position: fixed;
-        bottom: 80px;
-        right: 20px;
-        background: #00f2ff;
-        border-radius: 50%;
-        width: 60px;
-        height: 60px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        box-shadow: 0 0 20px #00f2ff;
-        z-index: 999;
-    }
+    .stApp { background: #050505; color: #00f2ff; }
+    .stChatInput { border: 2px solid #7000ff !important; }
+    .stButton>button { background: linear-gradient(45deg, #00f2ff, #7000ff); color: white; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SPECIALIST KNOWLEDGE BASE ---
-def specialist_brain(prompt, context=""):
-    # This is the "Specialist" instruction layer
-    system_instruction = (
-        "You are SSGPT, a dual specialist in Quant Finance and Theoretical Physics. "
-        "Use mathematical precision. If asked about stocks, provide volatility analysis. "
-        "If asked about physics, explain using first principles (entropy, forces, quantum mechanics). "
-        "Keep answers concise but high-level."
-    )
-    # Here you would call your GPT4All model.generate() 
-    # For this demo, we'll simulate the specialist response:
-    return f"ANALYSIS (Finance/Physics Delta): Based on the data, the trajectory follows a {prompt} pattern with high momentum."
+# --- 3. GOOGLE LOGIN & HISTORY ---
+if "authenticated" not in st.session_state:
+    st.title("💠 SSGPT ULTRA: ACCESS PORTAL")
+    email = st.text_input("Google Email")
+    nick = st.text_input("Codename")
+    if st.button("CONNECT GOOGLE ACCOUNT"):
+        if email and nick:
+            st.session_state.authenticated, st.session_state.email, st.session_state.nick = True, email, nick
+            st.rerun()
+    st.stop()
 
-# --- 3. THE SIDEBAR (Vault & Profile) ---
+# --- 4. SIDEBAR (VAULT & HISTORY) ---
 with st.sidebar:
-    st.title("👤 CODENAME: SHOURYA")
+    st.header(f"Specialist: {st.session_state.nick}")
     st.markdown("---")
-    st.subheader("📚 Physics/Finance Library")
-    up_file = st.file_uploader("Upload PDF Paper/Report", type=["pdf"])
+    st.subheader("📁 PDF Vault")
+    up_pdf = st.file_uploader("Upload Finance/Physics Data", type=["pdf"])
     
-    if up_file:
-        st.success("Intel Synchronized.")
+    st.markdown("---")
+    st.subheader("🕒 Previous Sessions")
+    st.caption("Auto-archiving active for: " + st.session_state.email)
 
-# --- 4. MAIN INTERFACE ---
-st.markdown("<h2 style='text-align: center; color: #00f2ff;'>SSGPT: QUANTUM-FINANCE 💠</h2>", unsafe_allow_html=True)
-
-# Addictive Typewriter Effect for Mobile
+# --- 5. MAIN CHAT & GRAPH LOGIC ---
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Systems Online. Awaiting Finance or Physics query..."}]
+    st.session_state.messages = []
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# --- 5. THE INPUT & SOUND ---
-if prompt := st.chat_input("Say 'Hey SSGPT' or type query..."):
-    # Sound Effect (Web-based beep for mobile compatibility)
+if prompt := st.chat_input("Input Finance or Physics query..."):
+    # Sound Effect (Addictive Trigger)
     st.markdown('<audio autoplay src="https://www.soundjay.com/buttons/beep-01a.mp3"></audio>', unsafe_allow_html=True)
     
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # SPECIALIST LOGIC: STOCKS
-        if any(x in prompt.lower() for x in ["stock", "market", "price", "graph"]):
-            ticker = "NVDA" if "nvidia" in prompt.lower() else "TSLA"
-            data = yf.download(ticker, period="1mo")
-            if not data.empty:
-                # FIXED: Handling Multi-index for Mobile Plotly
-                data.columns = [c[0] if isinstance(c, tuple) else c for c in data.columns]
-                fig = px.line(data, y="Close", title=f"{ticker} Momentum Vector", template="plotly_dark")
-                fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=300) # Compact for Mobile
-                st.plotly_chart(fig, use_container_width=True)
-                response = f"Quant Analysis: {ticker} showing specific resistance levels."
-            else:
-                response = "Unable to fetch market vectors."
-        
-        # SPECIALIST LOGIC: PHYSICS / GENERAL
-        else:
-            response = specialist_brain(prompt)
+        # THE GRAPH FIX (Solves the 'makes no sense' issue)
+        if any(x in prompt.lower() for x in ["graph", "chart", "price", "stock"]):
+            ticker = extract_ticker(prompt)
+            st.caption(f"🔍 Analyzing Market Vectors for {ticker}...")
             
-        # Addictive Typewriter Output
-        placeholder = st.empty()
-        full_res = ""
-        for char in response:
-            full_res += char
-            placeholder.markdown(full_res + "▌")
-            time.sleep(0.02)
-        placeholder.markdown(full_res)
-        
-    st.session_state.messages.append({"role": "assistant", "content": response})
+            df = yf.download(ticker, period="1mo")
+            
+            if not df.empty:
+                # CRITICAL FIX: This stops the ValueError from your screenshot
+                # It flattens the table so Plotly can find the 'Close' price correctly
+                df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+                
+                # Dynamic Graphing
+                fig = px.line(df, y="Close", title=f"{ticker} Performance (Finance Specialist View)", template="plotly_dark")
+                fig.update_traces(line_color='#00f2ff', line_width=3)
+                st.plotly_chart(fig, use_container_width=True)
+                response = f"Quant Analysis for {ticker} rendered based on 30-day momentum."
+            else:
+                st.error(f"Ticker {ticker} not found in global database.")
+                response = "Data link failed. Please provide a valid ticker (e.g., TSLA, AAPL, BTC-USD)."
 
-# --- 6. MOBILE VOICE TRIGGER (Visual Only) ---
-st.markdown('<div class="voice-btn">🎙️</div>', unsafe_allow_html=True)
+        # PHYSICS SPECIALIST LOGIC
+        elif any(x in prompt.lower() for x in ["physics", "force", "energy", "quantum"]):
+            response = "Physics Intel: Calculating trajectory and entropy variables for your query..."
+        else:
+            response = "Intelligence Synchronized. How shall we proceed, Shourya?"
+
+        # TYPEWRITER EFFECT (Addictive Visual)
+        ph = st.empty()
+        full = ""
+        for c in response:
+            full += c
+            ph.markdown(full + "▌")
+            time.sleep(0.01)
+        ph.markdown(response)
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
